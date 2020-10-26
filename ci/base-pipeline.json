@@ -1,0 +1,14 @@
+[
+  {
+    "ParameterKey": "kibanaUser",
+    "ParameterValue": "kibana"
+  },
+  {
+    "ParameterKey": "QSS3BucketName",
+    "ParameterValue": "$[taskcat_autobucket]"
+  },
+  {
+    "ParameterKey": "AudioTranscriptionBucketName",
+    "ParameterValue": "atb-$[taskcat_autobucket]"
+  }
+]

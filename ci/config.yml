@@ -1,0 +1,18 @@
+global:
+  marketplace-ami: false
+  owner: randhunt@amazon.com
+  qsname: quickstart-connect-voci
+  regions:
+    - ap-northeast-1
+    - ap-southeast-2
+    - eu-central-1
+    - us-east-1
+    - us-west-2
+  reporting: true
+  package-lambda: true
+tests:
+  quickstart-connect-voci-base-pipeline:
+    parameter_input: base-pipeline.json
+    template_file: quickstart-connect-voci-base-pipeline.yaml
+    regions:
+      - us-west-2

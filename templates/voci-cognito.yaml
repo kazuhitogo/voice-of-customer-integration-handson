@@ -1,0 +1,166 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Cognito Resources
+Resources:
+  #IAM Resources
+  # Roles
+  CognitoAuthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRoleWithWebIdentity
+            Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+        Version: "2012-10-17"
+  CognitoUnauthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRoleWithWebIdentity
+            Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+        Version: "2012-10-17"
+
+  CognitoAccessForAmazonES:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: es.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonESCognitoAccess
+  # Policies
+  CognitoAccessForAmazonESPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: elasticsearch cognito role
+      PolicyDocument:
+        Statement:
+          - Action:
+              - ec2:DescribeVpcs
+              - cognito-identity:ListIdentityPools
+              - cognito-identity:DescribeIdentityPool
+              - cognito-idp:ListUserPools
+              - cognito-idp:DescribeUserPool
+              - cognito-idp:CreateUserPoolDomain
+              - cognito-idp:DeleteUserPoolDomain
+            Effect: Allow
+            Resource: "*"
+          - Action:
+              - iam:GetRole
+              - iam:PassRole
+              # - iam:CreateRole
+              # - iam:AttachRolePolicy
+            Effect: Allow
+            Resource:
+              - !GetAtt CognitoUnauthRole.Arn
+              - !GetAtt CognitoAuthRole.Arn
+        Version: "2012-10-17"
+      Roles:
+        - Ref: CognitoAccessForAmazonES
+  CognitoAuthKibanaPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: elasticsearch cognito role
+      PolicyDocument:
+        Statement:
+          - Action:
+              - es:ESHttp*
+            Effect: Allow
+            Resource:
+              !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/*
+        Version: "2012-10-17"
+      Roles:
+        - Ref: CognitoAuthRole
+  # End IAM Resources
+  CognitoIdentityPoolRole:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId:
+        Ref: CognitoIdentityPool
+      Roles:
+        authenticated:
+          !GetAtt CognitoAuthRole.Arn
+        unauthenticated:
+          !GetAtt CognitoUnauthRole.Arn
+  CognitoApplicationClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName:
+        !Sub ${AWS::StackName}-appclient
+      GenerateSecret: false
+      RefreshTokenValidity: 2
+      UserPoolId:
+        !Ref CognitoUserPool
+  CognitoIdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      AllowUnauthenticatedIdentities: true
+      CognitoIdentityProviders:
+        - ClientId:
+            !Ref CognitoApplicationClient
+          ProviderName:
+            !Sub cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
+          ServerSideTokenCheck: false
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+        InviteMessageTemplate:
+          EmailMessage:
+            "Welcome to the Connect Indexer. Username: {username} Pwd:
+            {####}"
+          EmailSubject: Welcome to Connect Indexer.
+          SMSMessage: "Welcome to Connect Indexer. Username: {username} Pwd: {####}"
+        UnusedAccountValidityDays: 14
+      AliasAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      EmailVerificationMessage:
+        "Welcome to the Connect Indexer. Here is your confirmation
+        code: {####}"
+      EmailVerificationSubject: Connect Indexer Email Confirmation Code
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+      UserPoolName:
+        !Sub ${AWS::StackName}-users
+#****************************************
+Outputs:
+  # IAM Resources
+  # Roles
+  CognitoAuthRoleARN:
+    Description: Cognito Auth Role ARN
+    Value: !GetAtt CognitoAuthRole.Arn
+  CognitoUnauthRoleARN:
+    Description: Cognito UnAuth Role ARN
+    Value: !GetAtt CognitoUnauthRole.Arn
+  CognitoAccessForAmazonESARN:
+    Description: Cognito Access for Amazon Elastic Search Role ARN
+    Value: !GetAtt CognitoAccessForAmazonES.Arn
+  #Objects
+  CognitoIdentityPoolRole:
+    Description: Cognito Identity Pool Role
+    Value: !Ref CognitoIdentityPoolRole
+  CognitoApplicationClient:
+    Description: Cognito Application Client
+    Value: !Ref CognitoApplicationClient
+  CognitoIdentityPool:
+    Description: Cognito Identity Pool
+    Value: !Ref CognitoIdentityPool
+  CognitoUserPool:
+    Description: Cognito User Pool
+    Value: !Ref CognitoUserPool

@@ -1,0 +1,380 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Connect - Comprehend/Transcribe Connect Demo
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: General Settings
+        Parameters:
+          - kibanaUser
+          - AudioTranscriptionBucketName
+      - Label:
+          default: AWS Quick Start Configuration
+        Parameters:
+          - QSS3BucketName
+          - QSS3KeyPrefix
+    ParameterLabels:
+      kibanaUser:
+        default: The name of the user that is used to log into kibana.
+      AudioTranscriptionBucketName:
+        default: Audio transcription S3 Bucket Name
+      QSS3BucketName:
+        default: Quick Start S3 Bucket Name
+      QSS3KeyPrefix:
+        default: Quick Start S3 Key Prefix
+      ContactFlowLogGroup:
+        default: Where the logs are stored for your Amazon Connect instance
+Parameters:
+  kibanaUser:
+    Default: kibana
+    Description: The name of the user that is used to log into kibana.
+    Type: String
+  AudioTranscriptionBucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription:
+      Audio Transcription bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+    Default: voci-audiotranscriptionbucket
+    Description:
+      S3 bucket name for the Audio Transcription uploads. The Audio Transcription bucket name
+      can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+      It cannot start or end with a hyphen (-).
+    Type: String
+  QSS3BucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription:
+      Quick Start bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+    Default: aws-quickstart
+    Description:
+      S3 bucket name for the Quick Start assets. Quick Start bucket name
+      can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+      It cannot start or end with a hyphen (-).
+    Type: String
+  QSS3KeyPrefix:
+    AllowedPattern: ^[0-9a-zA-Z-/]*$
+    ConstraintDescription:
+      Quick Start key prefix can include numbers, lowercase letters,
+      uppercase letters, hyphens (-), and forward slash (/).
+    Default: 'quickstart-connect-voci/'
+    Description:
+      S3 key prefix for the Quick Start assets. Quick Start key prefix
+      can include numbers, lowercase letters, uppercase letters, hyphens (-), and
+      forward slash (/).
+    Type: String
+  ContactFlowLogGroup:
+    Default: /aws/connect/instancename
+    Description: Amazon Connect contact flow Cloudwatch Logs group
+    Type: String
+Resources:
+  #CF Stacks
+  LPStack:
+    # Lambda Portability Stack
+    # This stack will create copy the lambda zip files to the appropriate region.
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL:
+        !Sub "http://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/voci-lambda-portability.yaml"
+      Parameters:
+        QSS3BucketName: !Ref 'QSS3BucketName'
+        QSS3KeyPrefix: !Ref 'QSS3KeyPrefix'
+        LambdaZipObjects: !Join
+          - ','
+          - - functions/packages/CheckElasticsearchStatus.zip
+            - functions/packages/CheckTranscriptionJob.zip
+            - functions/packages/ElasticsearchCognito.zip
+            - functions/packages/IndexCTRInElasticSearch.zip
+            - functions/packages/IndexS3TranscriptionDataIntoES.zip
+            - functions/packages/ProcessTranscription.zip
+            - functions/packages/S3ProcessNewAudio.zip
+            - functions/packages/StartTranscriptionJob.zip
+            - functions/packages/CWLToElasticSearchLambda.zip
+    # End Lambda Portability stack
+  #**********************************
+  CognitoStack:
+    # Cognito Stack
+    # This stack will provision all cognito related resources (Roles, policies and objects)
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL:
+        !Sub "http://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/voci-cognito.yaml"
+    # End Cognito Stack
+  #**********************************
+  # End CF Stacks
+  # S3 Buckets
+  AudioTranscriptionBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Ref: AudioTranscriptionBucketName
+  # End S3 Buckets
+  # IAM Resources
+  # Roles
+  LambdaServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - s3:*
+                  - comprehend:*
+                  - transcribe:*
+                  - es:*
+                  - states:StartExecution
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - kinesis:GetRecords
+                  - kinesis:GetShardIterator
+                  - kinesis:DescribeStream
+                  - kinesis:ListStreams
+                  - cognito-idp:*
+                  - iam:PassRole
+                  - kms:*
+                Effect: Allow
+                Resource: '*'
+            Version: '2012-10-17'
+          PolicyName: LambdaServiceRolePolicy
+  StatesExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - !Sub states.${AWS::Region}.amazonaws.com
+        Version: '2012-10-17'
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - lambda:InvokeFunction
+                Effect: Allow
+                Resource: '*'
+            Version: '2012-10-17'
+          PolicyName: StatesExecutionPolicy
+  # End IAM Resources
+  #**********************************
+  # End IAM Resources
+  # Serverless Functions
+  elasticsearchCognito:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri:
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/ElasticsearchCognito.zip'
+      Description: ''
+      Environment:
+        Variables:
+          STEP_FUNCTION_ARN:
+            Ref: CfnStepFunction
+      Handler: elasticsearch-cognito.lambda_handler
+      MemorySize: 512
+      Role: 
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
+      Timeout: 240
+  checkElasticsearchStatus:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri:
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/CheckElasticsearchStatus.zip'
+      Description: ''
+      Handler: elasticsearch-cognito.check_status
+      MemorySize: 128
+      Role: 
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
+      Timeout: 15
+  indexIntoElasticsearch:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri:
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/IndexS3TranscriptionDataIntoES.zip'
+      Description: 'Lambda function that indexes the Transcription and NLP entities/keyphrases'
+      Environment:
+        Variables:
+          ES_DOMAIN:
+            !GetAtt CallsElasticSearch.DomainEndpoint
+          ES_EPISODE_INDEX: 'call-transcript'
+          ES_SENTENCE_INDEX: 'detail-call-transcript'
+      Handler: upload_to_elasticsearch.lambda_handler
+      MemorySize: 256
+      Role:
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
+      Timeout: 60
+  startTranscriptionJob:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri:
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/StartTranscriptionJob.zip'
+      Description: 'Lambda function that starts the Transcription job'
+      Environment:
+        Variables:
+          LANGUAGE_CODE: 'ja-JP'
+      Handler: start_transcription.lambda_handler
+      MemorySize: 256
+      Role:
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
+      Timeout: 60
+  checkTranscriptionJob:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri:
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/CheckTranscriptionJob.zip'
+      Description: 'Lambda function that checks the status of the Transcription job'
+      Handler: check_transcribe.lambda_handler
+      MemorySize: 256
+      Role:
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
+      Timeout: 60
+  processTranscriptionJob:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri:
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/ProcessTranscription.zip'
+      Description: 'Lambda function that processes the Transcription job'
+      Environment:
+        Variables:
+          BUCKET_NAME:
+            Ref: AudioTranscriptionBucketName
+          LANGUAGE_CODE: 'ja'
+      Handler: process_transcription.lambda_handler
+      MemorySize: 256
+      Role:
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
+      Timeout: 60
+  kickOffStepFunctionsFromS3Event:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri:
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/S3ProcessNewAudio.zip'
+      Description: 'Lambda function that starts the step function'
+      Environment:
+        Variables:
+          STEP_FUNCTIONS_ARN: !Ref processAudioFile
+      Events:
+        Upload:
+          Properties:
+            Bucket:
+              Ref: AudioTranscriptionBucket
+            Events: 's3:ObjectCreated:*'
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: wav
+          Type: S3
+      Handler: lambda_function.lambda_handler
+      MemorySize: 256
+      Role:
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
+      Timeout: 60
+  # End Serverless Functions
+  # Step Functions
+  CfnStepFunction:
+    Type: AWS::StepFunctions::StateMachine
+    DependsOn:
+      - checkElasticsearchStatus
+    Properties:
+      DefinitionString:
+        Fn::Sub:
+          "{\n  \"StartAt\": \"checkAction\",\n  \"States\": {\n    \"checkAction\"\
+          : { \n        \"Type\": \"Task\",\n        \"Resource\": \"${checkElasticsearchStatus.Arn}\"\
+          ,\n        \"InputPath\": \"$\",\n        \"ResultPath\": \"$\",\n     \
+          \   \"Next\": \"IsActionComplete\"\n    },\n    \"IsActionComplete\": {\n\
+          \     \"Type\": \"Choice\",\n                  \"Choices\": [\n        \
+          \            {\n                      \"Variable\": \"$.response.Status\"\
+          ,\n                      \"StringEquals\": \"IN_PROCESS\",\n           \
+          \           \"Next\": \"Wait\"\n                    }\n                \
+          \  ],\n                  \"Default\": \"Complete\"\n     },\n    \"Wait\"\
+          : {\n      \"Type\": \"Wait\",\n      \"Seconds\": 30,\n      \"Next\":\
+          \ \"checkAction\"\n    },\n    \"Complete\": { \n      \"Type\": \"Pass\"\
+          ,\n      \"End\": true\n    }\n  }\n}"
+      RoleArn:
+        !GetAtt StatesExecutionRole.Arn
+  processAudioFile:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString:
+        Fn::Sub: "{\n  \"StartAt\": \"Start Amazon Transcribe\",\n  \"States\": {\n    \"Start Amazon Transcribe\": {\n      \"Type\": \"Task\",\n      \"Resource\": \"${startTranscriptionJob.Arn}\",\n      \"InputPath\": \"$\",\n      \"ResultPath\": \"$.transcribe\",\n      \"Next\": \"Check Transcribe Status\",\n      \"Retry\": [\n        {\n          \"ErrorEquals\": [ \"ThrottlingException\" ],\n          \"IntervalSeconds\": 120,\n          \"BackoffRate\": 1,\n          \"MaxAttempts\": 1000\n        },\n        {\n          \"ErrorEquals\": [ \"States.ALL\" ],\n          \"IntervalSeconds\": 60,\n          \"BackoffRate\": 2,\n          \"MaxAttempts\": 3\n        }\n      ]\n    },\n    \"Check Transcribe Status\": {\n      \"Type\": \"Task\",\n      \"Resource\": \"${checkTranscriptionJob.Arn}\",\n      \"InputPath\": \"$.transcribe\",\n      \"ResultPath\": \"$.transcribeStatus\",\n      \"Next\": \"Is Transcribe Completed?\"\n    },\n    \"Wait for Transcribe Completion\": {\n      \"Type\": \"Wait\",\n      \"Seconds\": 60,\n      \"Next\": \"Check Transcribe Status\"\n    },\n    \"Is Transcribe Completed?\": {\n      \"Type\": \"Choice\",\n      \"Choices\": [\n        {\n          \"Variable\": \"$.transcribeStatus.status\",\n          \"StringEquals\": \"COMPLETED\",\n          \"Next\": \"Process Transcription\"\n        }\n      ],\n      \"Default\": \"Wait for Transcribe Completion\"\n    },\n    \"Process Transcription\": {\n      \"Type\": \"Parallel\",\n      \"Branches\": [\n        {\n          \"StartAt\": \"Generate Full Text Transcript\",\n          \"States\": {\n            \"Generate Full Text Transcript\": {\n              \"Type\": \"Task\",\n              \"Resource\": \"${processTranscriptionJob.Arn}\",\n              \"End\": true\n            }\n          }\n        }\n      ],\n      \"ResultPath\": \"$.processedTranscription\",\n      \"Next\": \"Upload To Elasticsearch\"\n    },\n    \"Upload To Elasticsearch\": {\n      \"Type\": \"Task\",\n      \"Resource\": \"${indexIntoElasticsearch.Arn}\",\n      \"InputPath\": \"$\",\n      \"ResultPath\": \"$.elasticsearchResult\",\n      \"Next\": \"Complete\"\n    },\n    \"Complete\": {\n      \"Type\": \"Succeed\"\n    }\n  }\n}"
+      RoleArn:
+        !GetAtt StatesExecutionRole.Arn
+  # End Step Functions
+  # Other Resources
+  ESCognito:
+    Type: Custom::ESName
+    Properties:
+      IdentityPoolId: !GetAtt CognitoStack.Outputs.CognitoIdentityPool
+      ServiceToken:
+        !GetAtt elasticsearchCognito.Arn
+      StackName:
+        !Ref AWS::StackName
+      UserPoolId: !GetAtt CognitoStack.Outputs.CognitoUserPool
+      esCluster:
+        !Ref CallsElasticSearch
+      esRoleArn: !GetAtt CognitoStack.Outputs.CognitoAccessForAmazonESARN
+      kibanaUser:
+        !Ref kibanaUser
+  CallsElasticSearch:
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      ElasticsearchVersion: '7.7'
+      ElasticsearchClusterConfig:
+        InstanceCount: 2
+        InstanceType: 'm4.large.elasticsearch'
+        ZoneAwarenessEnabled: true
+      EBSOptions:
+        EBSEnabled: true
+        VolumeSize: 512
+        VolumeType: gp2
+      AccessPolicies:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Join [':', ['arn:aws:iam:', !Ref 'AWS::AccountId', 'root']]
+            Action: 'es:*'
+            Resource: '*'
+# End Other Resources
+
+Outputs:
+  KibanaUrl:
+    Description: A hyperlink to the Kibana tool
+    Value:
+      Fn::Sub: https://${CallsElasticSearch.DomainEndpoint}/_plugin/kibana/
+
+  KibanaPassword:
+    Description: The password for the kibana user
+    Value:
+      !GetAtt ESCognito.KibanaPassword
+
+  KibanaUser:
+    Description: The username for the kibana user
+    Value:
+      !GetAtt ESCognito.KibanaUser
+
+
