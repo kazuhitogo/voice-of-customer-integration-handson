@@ -23,8 +23,6 @@ Metadata:
         default: Quick Start S3 Bucket Name
       QSS3KeyPrefix:
         default: Quick Start S3 Key Prefix
-      ContactFlowLogGroup:
-        default: Where the logs are stored for your Amazon Connect instance
 Parameters:
   kibanaUser:
     Default: kibana
@@ -65,10 +63,6 @@ Parameters:
       can include numbers, lowercase letters, uppercase letters, hyphens (-), and
       forward slash (/).
     Type: String
-  ContactFlowLogGroup:
-    Default: /aws/connect/instancename
-    Description: Amazon Connect contact flow Cloudwatch Logs group
-    Type: String
 Resources:
   #CF Stacks
   LPStack:
@@ -86,12 +80,10 @@ Resources:
           - - functions/packages/CheckElasticsearchStatus.zip
             - functions/packages/CheckTranscriptionJob.zip
             - functions/packages/ElasticsearchCognito.zip
-            - functions/packages/IndexCTRInElasticSearch.zip
             - functions/packages/IndexS3TranscriptionDataIntoES.zip
             - functions/packages/ProcessTranscription.zip
             - functions/packages/S3ProcessNewAudio.zip
             - functions/packages/StartTranscriptionJob.zip
-            - functions/packages/CWLToElasticSearchLambda.zip
     # End Lambda Portability stack
   #**********************************
   CognitoStack:
