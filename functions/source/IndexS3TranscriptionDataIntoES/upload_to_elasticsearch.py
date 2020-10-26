@@ -2,6 +2,7 @@ import boto3
 import certifi
 import json
 import os
+import datetime
 from aws_requests_auth.aws_auth import AWSRequestsAuth
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 import logging
@@ -63,7 +64,8 @@ def index_episode(es, event, fullEpisodeS3Location,contactId):
 
     s3_location = "s3://" + event['bucket'] + "/" + event['key']
 
-    s = event['key'].split('_')[1]
+    datetime_str = datetime.datetime.now().strftime('%Y-%m-%dT%H:%MZ')
+    date_str = datetime.datetime.now().strftime('%Y-%m-%d')
 
     contact_id = contactId
 
@@ -72,7 +74,7 @@ def index_episode(es, event, fullEpisodeS3Location,contactId):
             'audio_type': event['audio_type'],
             'audio_s3_location': s3_location,
             'contact_id': contact_id,
-            'LastUpdateTimestamp': s[0:4] + '-' + s[4:6] + '-' + s[6:8] + 'T' + s.split('T')[1] + 'Z',
+            'LastUpdateTimestamp': datetime_str,
             'type': 'CallRecord',
             'wavfile_name': event['key'].split('/')[-1]
         },
@@ -82,7 +84,7 @@ def index_episode(es, event, fullEpisodeS3Location,contactId):
         updateDoc['doc'][key] = fullepisode[key]
 
     es.update(
-        index=SENTENCE_INDEX + '-' + s[0:4] + '-' + s[4:6] + '-' + s[6:8] if fullepisode['detail_flag'] == True else FULL_EPISODE_INDEX + '-'  + s[0:4] + '-' + s[4:6] + '-' + s[6:8],
+        index=SENTENCE_INDEX + '-' + date_str if fullepisode['detail_flag'] else FULL_EPISODE_INDEX + '-'  + date_str,
         doc_type=FULL_EPISODE_DOCTYPE,
         body=updateDoc,
         id=contact_id
