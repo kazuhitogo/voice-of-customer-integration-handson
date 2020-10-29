@@ -1,3 +1,6 @@
 .DS_Store
-taskcat_outputs/
-ci/taskcat-dev*
+part2_solution/taskcat_outputs/
+part2_solution/ci/taskcat-dev*
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+part2_solution/functions/packages/*
