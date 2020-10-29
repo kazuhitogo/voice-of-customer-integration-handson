@@ -52,9 +52,7 @@ Login」をクリックします。
 
 ![](media/image6.png)
 
-ノートブックインスタンス名に任意の名前を入力（例：VoC-handson-{日付}-{名前}など
-
-）します。また、IAMロールの部分にある「TeamRole」
+ノートブックインスタンス名に任意の名前を入力（例：VoC-handson-{yyyymmdd}-{name}など）します。また、IAMロールの部分にある「TeamRole」
 と書かれたドロップダウンをクリックし、「新しいロールの作成」をクリックします。
 
 ![](media/image7.png)
@@ -148,7 +146,7 @@ jupyter
 
 2番目のセルにグローバルで一意なbucket名を入れます。
 
-例：voice-of-customer-{name}-{YYYYMMDD}など
+例：voice-of-customer-{name}-{yyyymmdd}など
 
 ![](media/image25.png)
 
@@ -166,7 +164,7 @@ AWSマネジメントコンソールでSageMakerを開いているタブに戻�
 
 先程入力したバケット名をクリックします。
 
-例）voice-of-customer-{name}-{YYYYMMDD}
+例）voice-of-customer-{name}-{yyyymmdd}
 
 ![](media/image29.png)
 
