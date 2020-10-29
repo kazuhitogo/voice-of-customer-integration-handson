@@ -8,6 +8,8 @@ Comprehend のサービスを AWS SDK for Python boto3 を用いた API
 経由で動かした後、AWS CloudFormation でVoice of Customer Integration
 ソリューションをデプロイし、データを投入して分析結果の可視化を行います。
 
+---
+
 **全体の流れ**
 
 1.  SageMaker Notebook インスタンスを作成（本ハンズオンの実行環境）
@@ -19,7 +21,7 @@ Comprehend のサービスを AWS SDK for Python boto3 を用いた API
 4.  Voice of Customer Integration
     ソリューションにデータを流し込んで利用してみる
 
-&nbsp;
+---
 
 1.  **SageMaker Notebook インスタンスを作成**
 
@@ -112,7 +114,9 @@ SageMakerの画面に戻り、「InService」になっていることを確認�
 
 ![](media/image19.png)
 
-2.  **Amazon Transcribe と Amazon Comprehend をboto3
+---
+
+2. **Amazon Transcribe と Amazon Comprehend をboto3
     を利用して実行する**
 
 「part1_use_service_on_cui」をクリックします。
@@ -125,7 +129,9 @@ SageMakerの画面に戻り、「InService」になっていることを確認�
 
 （以降、ノートブックに記載に従っていください）
 
-3.  **Voice of Customer Integration ソリューションをデプロイする**
+---
+
+3. **Voice of Customer Integration ソリューションをデプロイする**
 
 jupyter
 のファイル一覧画面に戻り、「voice-ofcustomer-integration-handson」をクリックします。
@@ -185,10 +191,9 @@ AWSマネジメントコンソールでSageMakerを開いているタブに戻�
 
 ![](media/image35.png)
 
-Amazon S3
-URLのテキストボックスに、先程コピーしたテキストを貼り付けます。
+Amazon S3 URLのテキストボックスに、先程コピーしたテキストを貼り付けます。
 
-例）
+例：https://voice-of-customer-{name}-{yyyymmdd}.s3-ap-northeast-1.amazonaws.com/asset/templates/quickstart-connect-voci-base-pipeline.yaml
 
 「次へ」をクリックします。
 
@@ -225,7 +230,10 @@ URLのテキストボックスに、先程コピーしたテキストを貼り�
 
 ![](media/image40.png)
 
-4.  **Voice of Customer Integration
+
+---
+
+4. **Voice of Customer Integration
     ソリューションにデータを流し込んで利用してみる**
 
 「S3」を検索して「S3」をクリックします。
