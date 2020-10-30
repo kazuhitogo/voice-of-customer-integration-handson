@@ -125,14 +125,14 @@ SageMakerの画面に戻り、「InService」になっていることを確認�
 
 ![](media/image21.png)
 
-（以降、ノートブックに記載に従っていください）
+（以降、ノートブックの記載に従っていください）
 
 ---
 
 3. **Voice of Customer Integration ソリューションをデプロイする**
 
 jupyter
-のファイル一覧画面に戻り、「voice-ofcustomer-integration-handson」をクリックします。
+のファイル一覧画面に戻り、「voice-of-customer-integration-handson」をクリックします。
 
 ![](media/image22.png)
 
