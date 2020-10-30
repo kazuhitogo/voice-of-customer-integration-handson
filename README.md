@@ -168,7 +168,7 @@ AWSマネジメントコンソールでSageMakerを開いているタブに戻�
 
 ![](media/image29.png)
 
-「asset」→「template」→「quickstart-connect-voice-base-pipeline.yaml」の順にクリックします。
+「asset」→「templates」→「quickstart-connect-voice-base-pipeline.yaml」の順にクリックします。
 
 ![](media/image30.png)
 
